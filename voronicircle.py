@@ -140,11 +140,14 @@ polygon = polygonize_by_nearest_neighbor(pixels_mask)
 polygon = Polygon(polygon)
 
 #generates random seeds
-points_x = np.random.random_integers(0,side_len,250)
-points_y = np.random.random_integers(0,side_len,250)
+points_x = np.random.random_integers(-side_len//2,side_len//2,250)
+points_y = np.random.random_integers(-side_len//2,side_len//2,250)
 points = (np.vstack((points_x,points_y))).T
-
-
+if (points.min(axis=0)[0] < 0):
+    points[:,0] -= points.min(axis=0)[0] - 50
+if (points.min(axis=0)[1] < 0):
+    points[:,1] -= points.min(axis=0)[1] - 50
+print(points)
 # returns a list of the centroids that are contained within the polygon
 new_points = []
 for point in points:
