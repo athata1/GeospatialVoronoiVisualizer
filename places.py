@@ -136,16 +136,15 @@ def polygonize_by_nearest_neighbor(pp):
 
 def get_data(long, lat, search):
     key = os.getenv('API_KEY')
-    data = requests.get(f'{url}?keyword={search}&location={long}%2C{lat}&radius={radius}&key={key}')
+    data = requests.get(f'{url}?keyword={search}&location={long}%2C{lat}&radius={radius}&key={key}&rankby=prominence')
     return data
 
 
-def get_location_data():
+def get_location_data(long, lat, search):
     
     coordinates = []
     
-    data = get_data(40.7128,-74.0060,'gym')
-    #print(data.text)
+    data = get_data(long, lat, search)
 
     json = data.json()
     for location in json['results']:
@@ -157,67 +156,79 @@ def get_location_data():
         coordinates.append(coords)
     return np.array(coordinates)
 
-location_data = get_location_data()
-points = np.delete(location_data, 2, 1)
-points = np.array(points, dtype='float64')
-points[:,0] -= points.min(axis=0)[0] - 0.01
-points[:,1] -= points.min(axis=0)[1] - 0.01
-points[:,0] *= 10000
-points[:, 1] *= 10000
+def get_polygons(long, lat, search):
+    location_data = get_location_data(long, lat, search)
+    orig_points = np.copy(location_data).tolist()
+    points = np.delete(location_data, 2, 1)
+    points = np.array(points, dtype='float64')
+    shift_x = points.min(axis=0)[0] - 0.01
+    shift_y = points.min(axis=0)[1] - 0.01
+    points[:,0] -= shift_x
+    points[:,1] -= shift_y
+    points[:,0] *= 10000
+    points[:, 1] *= 10000
 
-print(points)
-min_x = points.min(axis=0)[0]
-min_y = points.min(axis=0)[1]
-max_x = points.max(axis=0)[0]
-max_y = points.max(axis=0)[1]
-mean_x = np.mean(points[:, 0])
-mean_y = np.mean(points[:, 1])
-
-print(mean_x,mean_y)
-
-rad = 0
-for point in points:
-    rad = max(math.sqrt((mean_x - point[0])**2 + (mean_y - point[1])**2) + 20, rad)
+    min_x = points.min(axis=0)[0]
+    min_y = points.min(axis=0)[1]
+    max_x = points.max(axis=0)[0]
+    max_y = points.max(axis=0)[1]
+    mean_x = np.mean(points[:, 0])
+    mean_y = np.mean(points[:, 1])
+    
+    rad = 0
+    for point in points:
+        rad = max(math.sqrt((mean_x - point[0])**2 + (mean_y - point[1])**2) + 20, rad)
 
 
-#generates a circular mask
-side_len = int(rad*2+50)
-mask = np.zeros(shape=(side_len, side_len))
-rr, cc = draw.circle_perimeter(int(mean_y), int(mean_x), radius=int(rad), shape=mask.shape)
-mask[rr, cc] = 1
+    #generates a circular mask
+    side_len = int(rad*2+50)
+    mask = np.zeros(shape=(side_len, side_len))
+    rr, cc = draw.circle_perimeter(int(mean_y), int(mean_x), radius=int(rad), shape=mask.shape)
+    mask[rr, cc] = 1
 
-#makes a polygon from the mask perimeter
-se = get_circular_se(radius=1)
-contour = mask - binary_erosion(mask, structure=se)
-pixels_mask = np.array(np.where(contour==1)[::-1]).T
-polygon = polygonize_by_nearest_neighbor(pixels_mask)
-polygon = Polygon(polygon)
+    #makes a polygon from the mask perimeter
+    se = get_circular_se(radius=1)
+    contour = mask - binary_erosion(mask, structure=se)
+    pixels_mask = np.array(np.where(contour==1)[::-1]).T
+    polygon = polygonize_by_nearest_neighbor(pixels_mask)
+    polygon = Polygon(polygon)
 
-# returns a list of the centroids that are contained within the polygon
-new_points = []
-for point in points:
-    if polygon.contains(Point(point)):
-        new_points.append(point)
+    # returns a list of the centroids that are contained within the polygon
+    new_points = []
+    for point in points:
+        if polygon.contains(Point(point)):
+            new_points.append(point)
 
-#performs voronoi tesselation
-if len(points) > 3: #otherwise the tesselation won't work
-    vor = Voronoi(new_points)
-    regions, vertices = voronoi_finite_polygons_2d(vor)
+    #performs voronoi tesselation
+    if len(points) > 3: #otherwise the tesselation won't work
+        vor = Voronoi(new_points)
+        regions, vertices = voronoi_finite_polygons_2d(vor)
 
-    #clips tesselation to the mask
-    new_vertices = []
-    for region in regions:
-        poly_reg = vertices[region]
-        shape = list(poly_reg.shape)
-        shape[0] += 1
-        p = Polygon(np.append(poly_reg, poly_reg[0]).reshape(*shape)).intersection(polygon)
-        poly = (np.array(p.exterior.coords)).tolist()
-        new_vertices.append(poly)
+        #clips tesselation to the mask
+        new_vertices = []
+        out_coords = []
+        for region in regions:
+            poly_reg = vertices[region]
+            shape = list(poly_reg.shape)
+            shape[0] += 1
+            p:Polygon = Polygon(np.append(poly_reg, poly_reg[0]).reshape(*shape)).intersection(polygon)
+            coords = np.array(p.exterior.coords)
+            #print(coords, '\n')
+            coords[:,0] /= 10000
+            coords[:, 1] /= 10000
+            coords[:,0] += shift_x
+            coords[:, 1] += shift_y
+            out_coords.append(coords)
+            poly = (np.array(p.exterior.coords)).tolist()
+            new_vertices.append(coords.tolist())
+        
+        #plots the results
+        fig, ax = plt.subplots()
+        #ax.imshow(mask,cmap='Greys_r')
+        for poly in new_vertices:
+            ax.fill(*zip(*poly), alpha=0.7, color=(np.random.uniform(0, 1),np.random.uniform(0, 1),np.random.uniform(0, 1)))
+        ax.plot(points[:,0] / 10000 + shift_x,points[:,1] / 10000 + shift_y,'ro',ms=2)
+        plt.show()
+        return [out_coords, orig_points]
 
-    #plots the results
-    fig, ax = plt.subplots()
-    ax.imshow(mask,cmap='Greys_r')
-    for poly in new_vertices:
-        ax.fill(*zip(*poly), alpha=0.7, color=(np.random.uniform(0, 1),np.random.uniform(0, 1),np.random.uniform(0, 1)))
-    ax.plot(points[:,0],points[:,1],'ro',ms=2)
-    plt.show()
+print(get_polygons(40.7128,-74.0060,'gym'))
