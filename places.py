@@ -218,17 +218,19 @@ def get_polygons(long, lat, search):
             coords[:, 1] /= 10000
             coords[:,0] += shift_x
             coords[:, 1] += shift_y
-            out_coords.append(coords)
+            out_coords.append(coords.tolist())
             poly = (np.array(p.exterior.coords)).tolist()
             new_vertices.append(coords.tolist())
         
         #plots the results
-        fig, ax = plt.subplots()
+        #fig, ax = plt.subplots()
         #ax.imshow(mask,cmap='Greys_r')
-        for poly in new_vertices:
-            ax.fill(*zip(*poly), alpha=0.7, color=(np.random.uniform(0, 1),np.random.uniform(0, 1),np.random.uniform(0, 1)))
-        ax.plot(points[:,0] / 10000 + shift_x,points[:,1] / 10000 + shift_y,'ro',ms=2)
-        plt.show()
+        #for poly in new_vertices:
+        #    ax.fill(*zip(*poly), alpha=0.7, color=(np.random.uniform(0, 1),np.random.uniform(0, 1),np.random.uniform(0, 1)))
+        #ax.plot(points[:,0] / 10000 + shift_x,points[:,1] / 10000 + shift_y,'ro',ms=2)
+        #plt.show()
         return [out_coords, orig_points]
 
-print(get_polygons(40.7128,-74.0060,'gym'))
+if __name__ == "__main__":
+    #get_polygons(40.7128,-74.0060,'gym')
+    print(get_polygons(40.7128,-74.0060,'gym'))
