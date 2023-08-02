@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.ndimage import binary_erosion
 from scipy.spatial import Voronoi
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point, Polygon, GeometryCollection
 from skimage import draw
 from sklearn.neighbors import KDTree
 import math
@@ -14,18 +14,20 @@ import math
 load_dotenv()
 
 url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-radius = 1500
+radius = 5000
 
-def voronoi_finite_polygons_2d(vor: Voronoi, radius=None):
+def voronoi_finite_polygons_2d(vor, radius=None):
     """
-    Reconstruct infinite voronoi regionsx in a 2D diagram to finite
+    Reconstruct infinite voronoi regions in a 2D diagram to finite
     regions.
+
     Parameters
     ----------
     vor : Voronoi
         Input diagram
     radius : float, optional
         Distance to 'points at infinity'.
+
     Returns
     -------
     regions : list of tuples
@@ -34,6 +36,7 @@ def voronoi_finite_polygons_2d(vor: Voronoi, radius=None):
         Coordinates for revised Voronoi vertices. Same as coordinates
         of input vertices, with 'points at infinity' appended to the
         end.
+
     """
 
     if vor.points.shape[1] != 2:
@@ -44,7 +47,7 @@ def voronoi_finite_polygons_2d(vor: Voronoi, radius=None):
 
     center = vor.points.mean(axis=0)
     if radius is None:
-        radius = vor.points.ptp().max()*2
+        radius = vor.points.ptp().max()
 
     # Construct a map containing all ridges for a given point
     all_ridges = {}
@@ -137,6 +140,7 @@ def polygonize_by_nearest_neighbor(pp):
 def get_data(long, lat, search):
     key = os.getenv('API_KEY')
     data = requests.get(f'{url}?keyword={search}&location={long}%2C{lat}&radius={radius}&key={key}&rankby=prominence')
+    #print(data.json()['results'])
     return data
 
 
@@ -158,15 +162,65 @@ def get_location_data(long, lat, search):
 
 def get_polygons(long, lat, search):
     location_data = get_location_data(long, lat, search)
+    #create copy of original data points
     orig_points = np.copy(location_data).tolist()
+    
     points = np.delete(location_data, 2, 1)
     points = np.array(points, dtype='float64')
-    shift_x = points.min(axis=0)[0] - 0.01
-    shift_y = points.min(axis=0)[1] - 0.01
-    points[:,0] -= shift_x
-    points[:,1] -= shift_y
-    points[:,0] *= 10000
-    points[:, 1] *= 10000
+    
+    points[:,0] += 300
+    points[:,1] += 300
+
+    min_x = int(points.min(axis=0)[0])
+    min_y = int(points.min(axis=0)[1])
+    max_x = int(points.max(axis=0)[0])
+    max_y = int(points.max(axis=0)[1])
+    
+    vor = Voronoi(points)
+        
+    regions, vertices = voronoi_finite_polygons_2d(vor)
+    '''print("--")
+    print(regions)
+    print("--")
+    print(vertices)'''
+
+    # colorize
+    out_coords = []
+    for region in regions:
+        poly_reg = vertices[region]
+        shape = list(poly_reg.shape)
+        shape[0] += 1
+        p:Polygon = Polygon(np.append(poly_reg, poly_reg[0]).reshape(*shape))
+        if (type(p) == GeometryCollection):
+                p = p.geoms[0]
+        poly = (np.array(p.exterior.coords)).tolist()
+        coords = np.array(p.exterior.coords)
+        coords[:,0] -= 300
+        coords[:, 1] -= 300
+        out_coords.append(coords.tolist())
+        if __name__ == "__main__":
+            plt.fill(*zip(*poly), alpha=0.4)
+    
+    
+    if __name__ == "__main__":
+        plt.plot(points[:,0], points[:,1], 'ko', ms=2)
+        plt.xlim(vor.min_bound[0] - 0.1, vor.max_bound[0] + 0.1)
+        plt.ylim(vor.min_bound[1] - 0.1, vor.max_bound[1] + 0.1)
+
+        plt.show()
+    return [out_coords, orig_points]
+    
+
+'''def get_polygons(long, lat, search):
+    location_data = get_location_data(long, lat, search)
+    #create copy of original data points
+    orig_points = np.copy(location_data).tolist()
+    
+    points = np.delete(location_data, 2, 1)
+    points = np.array(points, dtype='float64')
+
+    points[:,0] += 300
+    points[:,1] += 300
 
     min_x = points.min(axis=0)[0]
     min_y = points.min(axis=0)[1]
@@ -181,10 +235,14 @@ def get_polygons(long, lat, search):
 
 
     #generates a circular mask
-    side_len = int(rad*2+50)
+    side_len = int(rad*2+100)
     mask = np.zeros(shape=(side_len, side_len))
     rr, cc = draw.circle_perimeter(int(mean_y), int(mean_x), radius=int(rad), shape=mask.shape)
     mask[rr, cc] = 1
+    fig, ax = plt.subplots()
+    ax.imshow(mask,cmap='Greys_r')
+    ax.plot(points[:,0],points[:,1],'ro',ms=2)
+    plt.show()
 
     #makes a polygon from the mask perimeter
     se = get_circular_se(radius=1)
@@ -212,25 +270,25 @@ def get_polygons(long, lat, search):
             shape = list(poly_reg.shape)
             shape[0] += 1
             p:Polygon = Polygon(np.append(poly_reg, poly_reg[0]).reshape(*shape)).intersection(polygon)
+            if (type(p) == GeometryCollection):
+                p = p.geoms[0]
             coords = np.array(p.exterior.coords)
-            #print(coords, '\n')
-            coords[:,0] /= 10000
-            coords[:, 1] /= 10000
-            coords[:,0] += shift_x
-            coords[:, 1] += shift_y
+            coords[:,0] -= 300
+            coords[:, 1] -= 300
             out_coords.append(coords.tolist())
             poly = (np.array(p.exterior.coords)).tolist()
             new_vertices.append(coords.tolist())
         
-        #plots the results
-        #fig, ax = plt.subplots()
-        #ax.imshow(mask,cmap='Greys_r')
-        #for poly in new_vertices:
-        #    ax.fill(*zip(*poly), alpha=0.7, color=(np.random.uniform(0, 1),np.random.uniform(0, 1),np.random.uniform(0, 1)))
-        #ax.plot(points[:,0] / 10000 + shift_x,points[:,1] / 10000 + shift_y,'ro',ms=2)
-        #plt.show()
+        if __name__ == "__main__":
+            #plots the results
+            fig, ax = plt.subplots()
+            #ax.imshow(mask,cmap='Greys_r')
+            for poly in new_vertices:
+                ax.fill(*zip(*poly), alpha=0.7, color=(np.random.uniform(0, 1),np.random.uniform(0, 1),np.random.uniform(0, 1)))
+            ax.plot(points[:,0] - 300,points[:,1] - 300,'ro',ms=2)
+            plt.show()
         return [out_coords, orig_points]
-
+'''
 if __name__ == "__main__":
-    #get_polygons(40.7128,-74.0060,'gym')
-    print(get_polygons(40.7128,-74.0060,'gym'))
+    #get_polygons(40.7128,-74.0060,'starbucks')
+    print(get_polygons(40.7128,-74.0060,'dunkin'))

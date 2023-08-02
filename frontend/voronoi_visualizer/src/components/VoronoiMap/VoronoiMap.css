@@ -1,0 +1,10 @@
+.voronoi-map {
+    height: 100vh;
+    width: calc(100vw - 300px);
+
+}
+
+.voronoi-map .leaflet-container {
+    width: 100%;
+    height: 100%;
+}
