@@ -1,21 +1,18 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial import Voronoi
-from shapely.geometry import Point, Polygon, GeometryCollection
-
+from shapely.geometry import Polygon
 
 def voronoi_finite_polygons_2d(vor, radius=None):
     """
     Reconstruct infinite voronoi regions in a 2D diagram to finite
     regions.
-
     Parameters
     ----------
     vor : Voronoi
         Input diagram
     radius : float, optional
         Distance to 'points at infinity'.
-
     Returns
     -------
     regions : list of tuples
@@ -24,7 +21,6 @@ def voronoi_finite_polygons_2d(vor, radius=None):
         Coordinates for revised Voronoi vertices. Same as coordinates
         of input vertices, with 'points at infinity' appended to the
         end.
-
     """
 
     if vor.points.shape[1] != 2:
@@ -35,7 +31,7 @@ def voronoi_finite_polygons_2d(vor, radius=None):
 
     center = vor.points.mean(axis=0)
     if radius is None:
-        radius = vor.points.ptp().max()
+        radius = vor.points.ptp().max()*2
 
     # Construct a map containing all ridges for a given point
     all_ridges = {}
@@ -89,28 +85,40 @@ def voronoi_finite_polygons_2d(vor, radius=None):
 
 # make up data points
 np.random.seed(1234)
-points = np.random.rand(15, 2) * 1000
+points = np.random.rand(15, 2)
 
 # compute Voronoi tesselation
 vor = Voronoi(points)
 
 # plot
 regions, vertices = voronoi_finite_polygons_2d(vor)
-print("--")
-print(regions)
-print("--")
-print(vertices)
+
+min_x = vor.min_bound[0] - 0.1
+max_x = vor.max_bound[0] + 0.1
+min_y = vor.min_bound[1] - 0.1
+max_y = vor.max_bound[1] + 0.1
+
+mins = np.tile((min_x, min_y), (vertices.shape[0], 1))
+bounded_vertices = np.max((vertices, mins), axis=0)
+maxs = np.tile((max_x, max_y), (vertices.shape[0], 1))
+bounded_vertices = np.min((bounded_vertices, maxs), axis=0)
+
+
+
+box = Polygon([[min_x, min_y], [min_x, max_y], [max_x, max_y], [max_x, min_y]])
 
 # colorize
 for region in regions:
-    poly_reg = vertices[region]
-    shape = list(poly_reg.shape)
-    shape[0] += 1
-    p:Polygon = Polygon(np.append(poly_reg, poly_reg[0]).reshape(*shape))
-    poly = (np.array(p.exterior.coords)).tolist()
-    plt.fill(*zip(*poly), alpha=0.4)
+    polygon = vertices[region]
+    # Clipping polygon
+    poly = Polygon(polygon)
+    poly = poly.intersection(box)
+    polygon = [p for p in poly.exterior.coords]
 
-plt.plot(points[:,0], points[:,1], 'ko')
+    plt.fill(*zip(*polygon), alpha=0.4)
+
+plt.plot(points[:, 0], points[:, 1], 'ko')
+plt.axis('equal')
 plt.xlim(vor.min_bound[0] - 0.1, vor.max_bound[0] + 0.1)
 plt.ylim(vor.min_bound[1] - 0.1, vor.max_bound[1] + 0.1)
 

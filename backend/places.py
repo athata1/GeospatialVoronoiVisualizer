@@ -14,7 +14,7 @@ import math
 load_dotenv()
 
 url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-radius = 5000
+radius = 10000
 
 def voronoi_finite_polygons_2d(vor, radius=None):
     """
@@ -171,18 +171,29 @@ def get_polygons(long, lat, search):
     points[:,0] += 300
     points[:,1] += 300
 
-    min_x = int(points.min(axis=0)[0])
-    min_y = int(points.min(axis=0)[1])
-    max_x = int(points.max(axis=0)[0])
-    max_y = int(points.max(axis=0)[1])
-    
     vor = Voronoi(points)
-        
+    
+    min_x = vor.min_bound[0] - 0.1
+    max_x = vor.max_bound[0] + 0.1
+    min_y = vor.min_bound[1] - 0.1
+    max_y = vor.max_bound[1] + 0.1
+    
     regions, vertices = voronoi_finite_polygons_2d(vor)
     '''print("--")
     print(regions)
     print("--")
     print(vertices)'''
+    box = Polygon([[min_x, min_y], [min_x, max_y], [max_x, max_y], [max_x, min_y]])
+
+    mean_x = np.mean(points[:, 0])
+    mean_y = np.mean(points[:, 1])
+    rad = 0
+    delta = 0.04
+    for point in points:
+        rad = max(math.sqrt((mean_x - point[0] + delta)**2 + (mean_y - point[1] + delta)**2), rad)
+
+    circle = Point(mean_x, mean_y).buffer(rad)
+    print(list(circle.exterior.coords))
 
     # colorize
     out_coords = []
@@ -190,7 +201,7 @@ def get_polygons(long, lat, search):
         poly_reg = vertices[region]
         shape = list(poly_reg.shape)
         shape[0] += 1
-        p:Polygon = Polygon(np.append(poly_reg, poly_reg[0]).reshape(*shape))
+        p:Polygon = Polygon(np.append(poly_reg, poly_reg[0]).reshape(*shape)).intersection(circle)
         if (type(p) == GeometryCollection):
                 p = p.geoms[0]
         poly = (np.array(p.exterior.coords)).tolist()
