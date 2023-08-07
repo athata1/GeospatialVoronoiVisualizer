@@ -15,7 +15,7 @@ import math
 load_dotenv()
 
 url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-radius = 10000
+radius = 7000
 
 def voronoi_finite_polygons_2d(vor, radius=None):
     """

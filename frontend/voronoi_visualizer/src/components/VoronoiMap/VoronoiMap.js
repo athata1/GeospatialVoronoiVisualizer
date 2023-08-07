@@ -41,7 +41,7 @@ export default function VoronoiMap() {
             mapRef.current.setView(new L.LatLng(parseFloat(latitude), parseFloat(longitude)), 13);
         })
         .catch(err => {
-            console.log(err)
+            alert('Error: Not enough data to generate diagram')
         })
     }
 
