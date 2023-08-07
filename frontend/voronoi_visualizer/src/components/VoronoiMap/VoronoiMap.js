@@ -17,6 +17,10 @@ export default function VoronoiMap() {
         iconUrl: require('../../assets/marker.png'),
         iconSize: [35, 55],
       })
+    const houseIcon = new L.Icon({
+        iconUrl: require('../../assets/houseicon.png'),
+        iconSize: [35, 35],
+    })
     useEffect(() => {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(success, error);
@@ -26,19 +30,27 @@ export default function VoronoiMap() {
 
     }, [])
 
+    function getVoronoi() {
+        const latitude = mapRef.current.getCenter().lat
+        const longitude = mapRef.current.getCenter().lng;
+        axios.get(`http://127.0.0.1:5000/voronoi?long=${latitude}&lat=${longitude}&search=${search}&timestamp=${new Date().getTime()}`)
+        .then(json => {
+            setData(json.data)
+            console.log(`Latitude: ${latitude}, Longitude: ${longitude}`);
+            setPosition({lat: latitude, lng: longitude})
+            mapRef.current.setView(new L.LatLng(parseFloat(latitude), parseFloat(longitude)), 13);
+        })
+        .catch(err => {
+            console.log(err)
+        })
+    }
+
     function success(position) {
         const latitude = position.coords.latitude;
         const longitude = position.coords.longitude;
         console.log(`Latitude: ${latitude}, Longitude: ${longitude}`);
         setPosition({lat: latitude, lng: longitude})
         mapRef.current.setView(new L.LatLng(parseFloat(latitude), parseFloat(longitude)), 13);
-        axios.get(`http://127.0.0.1:5000/voronoi?long=${latitude}&lat=${longitude}&search=workoutgym&timestamp=${new Date().getTime()}`)
-        .then(json => {
-            setData(json.data)
-        })
-        .catch(err => {
-            console.log(err)
-        })
      }
 
     function error() {
@@ -64,7 +76,12 @@ export default function VoronoiMap() {
                 {data && data[0].map((polygon, index) => {
                     return <Polygon color='blue' positions={polygon}/>
                 })}
+                <Marker position={[position.lat, position.lng]} icon={houseIcon}>
+                </Marker>
             </MapContainer>
+            <button className='voronoi-map-button' onClick={() => {getVoronoi()}} disabled={search === ''}>
+                {search === '' ? "Select Search Parameter" : "Generate Voronoi"}
+            </button>
         </div>
     )
 }

@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import binary_erosion
 from scipy.spatial import Voronoi
 from shapely.geometry import Point, Polygon, GeometryCollection
+import shapely.affinity as affinity
 from skimage import draw
 from sklearn.neighbors import KDTree
 import math
@@ -160,6 +161,8 @@ def get_location_data(long, lat, search):
         coordinates.append(coords)
     return np.array(coordinates)
 
+
+
 def get_polygons(long, lat, search):
     location_data = get_location_data(long, lat, search)
     #create copy of original data points
@@ -192,7 +195,8 @@ def get_polygons(long, lat, search):
     for point in points:
         rad = max(math.sqrt((mean_x - point[0] + delta)**2 + (mean_y - point[1] + delta)**2), rad)
 
-    circle = Point(mean_x, mean_y).buffer(rad)
+    circle = Point(mean_x, mean_y).buffer(1)
+    circle = affinity.scale(circle, rad, rad * 1.25)
     print(list(circle.exterior.coords))
 
     # colorize
