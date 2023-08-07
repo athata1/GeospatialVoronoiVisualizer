@@ -1,8 +1,8 @@
 .voronoi-options {
     height: 100vh;
-    width: 300px;
+    width: 500px;
     background-color: #cffafe;
-    overflow-y: scroll;
+    overflow-y: auto;
 }
 
 .voronoi-option {
