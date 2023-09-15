@@ -33,7 +33,7 @@ export default function VoronoiMap() {
     function getVoronoi() {
         const latitude = mapRef.current.getCenter().lat
         const longitude = mapRef.current.getCenter().lng;
-        axios.get(`http://127.0.0.1:5000/voronoi?long=${latitude}&lat=${longitude}&search=${search}&timestamp=${new Date().getTime()}`)
+        axios.get(`http://127.0.0.1:5000/Geovor/v1/voronoi?long=${latitude}&lat=${longitude}&search=${search}&timestamp=${new Date().getTime()}`)
         .then(json => {
             setData(json.data)
             console.log(`Latitude: ${latitude}, Longitude: ${longitude}`);

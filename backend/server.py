@@ -11,7 +11,7 @@ if __name__ == "__main__":
     def home():
         return "Hello World"
 
-    @app.route("/voronoi")
+    @app.route("/Geovor/v1/voronoi")
     @cross_origin(origin='*')
     def voronoi():
         args = request.args
